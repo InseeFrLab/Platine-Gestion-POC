@@ -1,0 +1,18 @@
+.OrchestratorWrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.OrchestratorNavigation nav {
+    display: flex;
+}
+
+.OrchestratorNavigation button[aria-current="true"] {
+    font-weight: bold;
+}
+
+.OrchestratorComponent {
+    display: flex;
+    gap: 1rem;
+}
