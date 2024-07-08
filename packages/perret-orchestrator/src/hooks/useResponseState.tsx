@@ -1,27 +1,20 @@
-// On veut les valeur collectées
-// On veut les valeur éditées
-// On veut mettre à jour au fil du temps
-
 import {
   createContext,
   type PropsWithChildren,
-  useCallback,
   useContext,
   useMemo,
-  useSyncExternalStore,
 } from "react";
+import { createStore, useStore } from "zustand";
+import { combine } from "zustand/middleware";
+import { produce } from "immer";
 
-type VariableState = "COLLECTED" | "EDITED" | "FORCED";
-
-type Store = {
-  [variableName: string]: {
-    type: VariableState;
-    value: unknown;
-    timestamp: number;
-  }[];
+type VariableChange = {
+  type: "COLLECTED" | "EDITED" | "FORCED";
+  value: unknown;
+  timestamp: number;
 };
 
-const buildStore = (data: Record<string, unknown>) => {
+function createStoreFromData(data: Record<string, unknown>) {
   const variables = Object.fromEntries(
     Object.entries(data).map(([k, v]) => [
       k,
@@ -31,82 +24,84 @@ const buildStore = (data: Record<string, unknown>) => {
           value: v,
           timestamp: new Date().getTime(),
         },
-      ],
+      ] satisfies VariableChange[],
     ]),
-  ) satisfies Store;
-  const target = new EventTarget();
-  type Events = {
-    change: { name: string };
-  };
+  );
+  return createStore(
+    combine(
+      {
+        variables: variables,
+      },
+      (set) => ({
+        updateVariable: (
+          name: string,
+          value: unknown,
+          mode: VariableChange["type"] = "EDITED",
+        ) =>
+          set(
+            produce((state) => {
+              // This is a new variable (not already tracked)
+              if (!(name in state.variables)) {
+                state.variables[name] = [];
+              }
 
-  return {
-    on<T extends keyof Events>(
-      eventName: T,
-      cb: (args: { detail: Events[T] }) => void,
-    ) {
-      console.log("store on listened");
-      target.addEventListener(eventName, cb);
-      return () => target.removeEventListener(eventName, cb);
-    },
-    updateVariable(
-      name: string,
-      value: unknown,
-      mode: VariableState = "EDITED",
-    ) {
-      if (!(name in variables)) {
-        variables[name] = [];
-      }
-      const changes = [...variables[name]];
-      const change = {
-        type: mode,
-        value,
-        timestamp: new Date().getTime(),
-      };
-      // The change has the same type has the last change, update it instead
-      if (changes.length > 0 && changes[changes.length - 1].type === mode) {
-        changes[changes.length - 1] = change;
-      } else {
-        changes.push(change);
-      }
-      variables[name] = changes;
-      target.dispatchEvent(new CustomEvent("change", { detail: { name } }));
-    },
-    getChanges(name: string) {
-      return variables[name] ?? [];
-    },
-  };
+              const changes = state.variables[name];
+              const change = {
+                type: mode,
+                value,
+                timestamp: new Date().getTime(),
+              };
+              // The change has the same type has the last change, update it instead
+              if (
+                changes.length > 0 &&
+                changes[changes.length - 1].type === mode
+              ) {
+                changes[changes.length - 1] = change;
+              } else if (value !== changes[changes.length - 1].value) {
+                changes.push(change);
+              }
+            }),
+          ),
+      }),
+    ),
+  );
+}
+
+const VariablesContext = createContext<ReturnType<typeof createStoreFromData>>(
+  createStoreFromData({}),
+);
+
+export const VariablesContextProvider = ({
+  data,
+  children,
+}: PropsWithChildren<{ data: Record<string, unknown> }>) => {
+  const store = useMemo(() => createStoreFromData(data), [data]);
+  return (
+    <VariablesContext.Provider value={store}>
+      {children}
+    </VariablesContext.Provider>
+  );
 };
 
-const ChangesContext = createContext(buildStore({}));
-
-export function useResponseState(name: string): {
+export function useResponseState(variableName: string): {
   state: "COLLECTED" | "EDITED" | "FORCED";
   collectedValue: unknown;
 } {
-  const store = useContext(ChangesContext);
-
-  const values = useSyncExternalStore(
-    useCallback((callback) => {
-      return store.on("change", (event) => {
-        if (event.detail.name === name) {
-          callback();
-        }
-      });
-    }, []),
-    useCallback(() => store.getChanges(name), []),
+  const store = useContext(VariablesContext);
+  const changes = useStore(
+    store,
+    (state) => state.variables[variableName] ?? [],
   );
 
-  console.log("store", name, values);
-
-  if (values.length === 0) {
+  if (changes.length === 0) {
     return {
       state: "COLLECTED",
       collectedValue: null,
     };
   }
 
-  const firstValue = values[0];
-  const lastValue = values.at(-1)!;
+  const firstValue = changes[0];
+  const lastValue = changes.at(-1)!;
 
   return {
     state: lastValue.type,
@@ -115,16 +110,6 @@ export function useResponseState(name: string): {
 }
 
 export function useUpdateResponse() {
-  return useContext(ChangesContext).updateVariable;
-}
-
-export function VariablesChangesContext({
-  data,
-  children,
-}: PropsWithChildren<{ data: Record<string, unknown> }>) {
-  return (
-    <ChangesContext.Provider value={useMemo(() => buildStore(data), [data])}>
-      {children}
-    </ChangesContext.Provider>
-  );
+  const store = useContext(VariablesContext);
+  return useStore(store, (state) => state.updateVariable);
 }

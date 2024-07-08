@@ -13,7 +13,7 @@ import { ComponentWrapper } from "./ComponentWrapper.tsx";
 import type { LunaticSlotComponents } from "@inseefr/lunatic/lib/components/shared/HOC/slottableComponent";
 import {
   useUpdateResponse,
-  VariablesChangesContext,
+  VariablesContextProvider,
 } from "./hooks/useResponseState.tsx";
 
 type Props = {
@@ -27,9 +27,9 @@ const slots = {
 
 export function Orchestrator({ source, data }: Props) {
   return (
-    <VariablesChangesContext data={data}>
+    <VariablesContextProvider data={data}>
       <LunaticOrchestrator source={source} data={data} />
-    </VariablesChangesContext>
+    </VariablesContextProvider>
   );
 }
 

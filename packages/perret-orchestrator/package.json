@@ -11,10 +11,12 @@
     "react": "^18.3.1"
   },
   "dependencies": {
-    "@inseefr/lunatic": "^3.1.2"
+    "@inseefr/lunatic": "^3.1.2",
+    "immer": "^10.1.1",
+    "zustand": "^4.5.4"
   },
   "devDependencies": {
-    "eslint": "^8.57.0",
-    "@platine/eslint-config": "*"
+    "@platine/eslint-config": "*",
+    "eslint": "^8.57.0"
   }
 }
