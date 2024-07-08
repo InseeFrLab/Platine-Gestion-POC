@@ -1,0 +1,8 @@
+{
+  "name": "@platine/prettier",
+  "type": "module",
+  "version": "1.0.0",
+  "main": "prettier.config.js",
+  "scripts": {
+  }
+}
